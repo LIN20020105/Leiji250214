@@ -41,15 +41,22 @@ extern "C" {
 
 extern uint32_t ADC_Buffer[ADC_CHANNELS];
 
-typedef struct {
-  uint16_t year;
-  uint8_t month;
-  uint8_t day;
-  uint8_t hour;
-  uint8_t minute;
-  uint8_t second;
-} RTC_TimeStruct;
+//typedef struct {
+//  uint16_t year;
+//  uint8_t month;
+//  uint8_t day;
+//  uint8_t hour;
+//  uint8_t minute;
+//  uint8_t second;
+//} RTC_TimeStruct;
 
+typedef struct OneThunderData {
+	uint32_t head;
+    uint32_t timestamp;
+	uint32_t uuid;
+	uint32_t thunder1;
+	uint16_t battery;
+} OneThunderData;
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -66,11 +73,14 @@ typedef struct {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
-uint32_t calculate_timestamp(RTC_TimeStruct *rtc_time);
-static int is_leap_year(int year);
-static int days_in_month(int year, int month);
+//uint32_t calculate_timestamp(RTC_TimeStruct *rtc_time);
+//static int is_leap_year(int year);
+//static int days_in_month(int year, int month);
 void sys_enter_stop_mode(void);
 void sys_out_stop_mode(void);
+void GetChipID ( void );
+uint32_t murmur3_32_simple(uint32_t k);
+uint32_t hash_cpu_id(uint32_t cpu_id0, uint32_t cpu_id1, uint32_t cpu_id2);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
