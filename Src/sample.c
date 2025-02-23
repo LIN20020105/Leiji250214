@@ -14,7 +14,8 @@ uint16_t adc_data_2[ADC_BUFFER_SIZE];
 uint32_t adc1_idx = 0;
 uint32_t adc2_idx = 0;
 
-uint16_t thunder1 = 0,battery = 0;
+uint32_t thunder1 = 0;
+uint16_t battery = 0;
 
 /**
  * @brief
@@ -32,13 +33,13 @@ void sample_adc(int push_to_pkg) {
     }
   }
   thunder1 = ADC_Buffer[1];
-  battery = ADC_Buffer[0];
+  battery = (ADC_Buffer[0]*100)/4096;
+  
 
   if (push_to_pkg) {
     push_data(thunder1,RTC_Get_Timestamp());
   }
 
-  // For test. Can be deleted later
   adc_data_1[adc1_idx] = ADC_Buffer[0];//battery
   adc_data_2[adc2_idx] = ADC_Buffer[1];//thunder
 
