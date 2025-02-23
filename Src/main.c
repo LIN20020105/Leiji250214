@@ -41,7 +41,7 @@
 
 
 uint32_t ADC_Buffer[ADC_CHANNELS];
-
+OneThunderData OneDate;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -65,9 +65,15 @@ uint8_t sample_flag = 0;
 uint8_t enter_stop = 0;
 uint32_t uuid = 0x0;
 extern uint16_t battery;
+extern uint32_t thunder1;
 extern ThunderData payload[PAYLOAD_MAX_SIZE];
 extern UPackage package;
-extern uint16_t thunder1 ,battery;
+const char *cmd1 = "+++";
+const char *cmd2 = "AT+CFUN=1,1\r\n";
+const char *cmd3 = "ATO\r\n";
+uint32_t CpuID[3];							//小端模式
+uint32_t hashed_value = 0;
+uint32_t timeout_counter = 0;
 
 /* USER CODE END PV */
 
@@ -99,7 +105,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  uuid = HAL_GetDEVID();
+//  uuid = HAL_GetDEVID();
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -118,7 +124,9 @@ int main(void)
   dev_state = DEV_WORK;
   RTC_Set_Alarm();
   init_package();
-
+		GetChipID();
+		hashed_value = hash_cpu_id(CpuID[0], CpuID[1], CpuID[2]);
+		hashed_value = hashed_value * 10;
   while (1) {
     // RTC clk will use LSE (now LSI 40Khz is not accurate)
     rtc_ts = RTC_Get_Timestamp();
@@ -130,7 +138,10 @@ int main(void)
       RTC_LED = !RTC_LED;
 
       // Send data if connected to server
-      if (IO_NB_NETMODE && IO_NB_LINK) {
+//      if (IO_NB_NETMODE && IO_NB_LINK) {
+		while (!IO_NB_LINK) {
+		}
+		 if (IO_NB_LINK) {
         sample_adc(0);
         send_package(battery, RTC_Get_Timestamp());
         RTC_Set_Alarm();
@@ -139,8 +150,8 @@ int main(void)
       } else {
         // 1. Reset NBIOT_DTU If timeout (60s)
         if (uwTick - rdy_send_time >= 1000 * 60) {
-          // rst action (by AT, or ?)
-
+				HAL_GPIO_WritePin(GPIOA,GPIO_PIN_1,GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOA,GPIO_PIN_1,GPIO_PIN_SET);
         }
         // 2. Reset Fail, cancel sending task and enter low-power mode
         else if (uwTick - rdy_send_time >= 1000 * 120) {
@@ -165,12 +176,11 @@ int main(void)
 
       // 2. Recovery MCU and NB-iot state
        sys_out_stop_mode();
-//	   sample_flag = 1;
-//		sample_adc(1);
-//		HAL_UART_Transmit(&huart1,(uint8_t*)&thunder1,sizeof(thunder1),100);
-//		HAL_UART_Transmit(&huart1,(uint8_t*)&battery,sizeof(battery),100);
-//		sample_flag = 0;
-
+		if(sample_flag == 1){
+			sample_adc(1);
+			}
+		}
+		sample_flag = 0;
     }
   }
 
@@ -184,7 +194,7 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
   /* USER CODE END 3 */
-}
+
 
 /**
   * @brief System Clock Configuration
@@ -236,11 +246,17 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	if (GPIO_Pin == GPIO_PIN_0){
-		sample_adc(1);
-//    HAL_UART_Transmit(&huart1, (uint8_t *)payload,
-//                      sizeof(ThunderData) * package.nSize, 100);
-		HAL_UART_Transmit(&huart1,(uint8_t*)&thunder1,sizeof(thunder1),100);
-		HAL_UART_Transmit(&huart1,(uint8_t*)&battery,sizeof(battery),100);
+		sample_flag = 1;
+//		sample_adc(1);
+////		OneDate.battery = battery;
+////		OneDate.thunder1 = thunder1;
+////		OneDate.timestamp = RTC_Get_Timestamp();
+////		OneDate.uuid = hashed_value;
+//		HAL_UART_Transmit(&huart1,(uint8_t*)&hashed_value,sizeof(hashed_value),100);
+//		HAL_UART_Transmit(&huart1,(uint8_t*)&thunder1,sizeof(thunder1),100);
+//		HAL_UART_Transmit(&huart1,(uint8_t*)&battery,sizeof(battery),100);
+////		HAL_UART_Transmit(&huart1,(uint8_t*)&OneDate,sizeof(OneDate),100);
+////		sample_flag = 0;
 }
 }
 
@@ -255,18 +271,41 @@ void sys_enter_stop_mode(void) {
 
   HAL_PWR_EnableWakeUpPin(PWR_WAKEUP_PIN1);
   HAL_SuspendTick();
+	HAL_GPIO_WritePin(GPIOA,GPIO_PIN_1,GPIO_PIN_RESET);
+
   HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);
 }
 void sys_out_stop_mode(void) {
   SystemClock_Config();
   MX_GPIO_Init();
-  // MX_DMA_Init();
   MX_ADC1_Init();
   MX_USART1_UART_Init();
-  // MX_RTC_Init();
   HAL_ResumeTick();
 }
+void GetChipID ( void )
+{
+    CpuID[0] = * ( uint32_t * ) ( 0x1ffff7e8 ); //高32位地址
+    CpuID[1] = * ( uint32_t * ) ( 0x1ffff7ec ); //中32位地址
+    CpuID[2] = * ( uint32_t * ) ( 0x1ffff7f0 ); //低32位地址
+}
+uint32_t murmur3_32_simple(uint32_t k) {
+    k ^= k >> 16;
+    k *= 0x85ebca6b;
+    k ^= k >> 13;
+    k *= 0xc2b2ae35;
+    k ^= k >> 16;
+    return k;
+}
+uint32_t hash_cpu_id(uint32_t cpu_id0, uint32_t cpu_id1, uint32_t cpu_id2) {
+    uint64_t combined_id = ((uint64_t)cpu_id0 << 32) | cpu_id1;
+    combined_id ^= cpu_id2;
 
+    uint32_t hash = murmur3_32_simple(combined_id & 0xFFFFFFFF);
+    hash ^= murmur3_32_simple(combined_id >> 32);
+
+    // 取模到 0-999999
+    return hash % 1000000;
+}
 /* USER CODE END 4 */
 
 /**
